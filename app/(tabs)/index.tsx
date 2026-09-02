@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110,
     gap: Spacing.xl,
   },
   emergencyCard: {

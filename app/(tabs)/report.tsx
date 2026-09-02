@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxxl,
+    paddingBottom: 110,
     gap: Spacing.lg,
   },
   sectionCard: {

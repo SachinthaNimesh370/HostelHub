@@ -2,13 +2,20 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+
+  // Dynamically calculate bottom padding for Android 3-button bar / iOS home indicator
+  const bottomInset = insets.bottom;
+  const paddingBottom = bottomInset > 0 ? bottomInset + 4 : (Platform.OS === 'ios' ? 24 : 12);
+  const tabHeight = 54 + paddingBottom;
 
   return (
     <Tabs
@@ -21,9 +28,10 @@ export default function TabLayout() {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
+          height: tabHeight,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingBottom: paddingBottom,
+          elevation: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
