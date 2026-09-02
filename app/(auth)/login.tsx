@@ -110,43 +110,60 @@ export default function LoginScreen() {
             style={styles.topControlRow}
           >
             <View style={styles.langRow}>
-              {languages.map((lang) => (
-                <TouchableOpacity
-                  key={lang}
-                  onPress={() => setSelectedLang(lang)}
-                  style={[
-                    styles.langChip,
-                    {
-                      backgroundColor:
-                        selectedLang === lang ? colors.primary : colors.inputBackground,
-                      borderColor:
-                        selectedLang === lang ? colors.primary : colors.inputBorder,
-                    },
-                  ]}
-                >
-                  <Text
+              {languages.map((lang) => {
+                const isSelected = selectedLang === lang;
+                return (
+                  <TouchableOpacity
+                    key={lang}
+                    onPress={() => setSelectedLang(lang)}
+                    activeOpacity={0.8}
                     style={[
-                      styles.langChipText,
+                      styles.langChip,
                       {
-                        color:
-                          selectedLang === lang ? '#FFFFFF' : colors.textSecondary,
+                        backgroundColor: isSelected
+                          ? colors.primary
+                          : isDark
+                          ? colors.inputBackground
+                          : '#FFFFFF',
+                        borderColor: isSelected
+                          ? colors.primary
+                          : isDark
+                          ? colors.inputBorder
+                          : '#CBD5E1',
+                        ...Shadows.sm,
                       },
                     ]}
                   >
-                    {lang}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.langChipText,
+                        {
+                          color: isSelected
+                            ? '#FFFFFF'
+                            : isDark
+                            ? colors.textSecondary
+                            : '#0F172A',
+                          fontWeight: isSelected ? '700' : '600',
+                        },
+                      ]}
+                    >
+                      {lang}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Theme Toggle Button */}
             <TouchableOpacity
               onPress={toggleTheme}
+              activeOpacity={0.8}
               style={[
                 styles.themeToggleBtn,
                 {
-                  backgroundColor: colors.inputBackground,
-                  borderColor: colors.inputBorder,
+                  backgroundColor: isDark ? colors.inputBackground : '#FFFFFF',
+                  borderColor: isDark ? colors.inputBorder : '#CBD5E1',
+                  ...Shadows.sm,
                 },
               ]}
               accessibilityLabel="Toggle Light and Dark Theme"
@@ -156,7 +173,12 @@ export default function LoginScreen() {
                 size={18}
                 color={isDark ? '#FBBF24' : colors.primary}
               />
-              <Text style={[styles.themeToggleText, { color: colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.themeToggleText,
+                  { color: isDark ? '#F8FAFC' : '#0F172A' },
+                ]}
+              >
                 {isDark ? 'Dark' : 'Light'}
               </Text>
             </TouchableOpacity>
@@ -296,13 +318,14 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             {/* Login Button */}
-            <AnimatedPressable
+            <TouchableOpacity
               onPress={handleLogin}
-              style={({ pressed }) => [
+              activeOpacity={0.85}
+              style={[
                 styles.loginButton,
                 {
                   backgroundColor: colors.primary,
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
+                  ...Shadows.md,
                 },
               ]}
             >
@@ -313,7 +336,7 @@ export default function LoginScreen() {
                 color="#FFFFFF"
                 style={{ marginLeft: 8 }}
               />
-            </AnimatedPressable>
+            </TouchableOpacity>
 
             {/* Divider */}
             <View style={styles.dividerRow}>
@@ -330,17 +353,19 @@ export default function LoginScreen() {
 
             {/* SSO Button */}
             <TouchableOpacity
+              activeOpacity={0.8}
               style={[
                 styles.ssoButton,
                 {
-                  backgroundColor: colors.inputBackground,
-                  borderColor: colors.inputBorder,
+                  backgroundColor: isDark ? colors.inputBackground : '#FFFFFF',
+                  borderColor: isDark ? colors.inputBorder : '#CBD5E1',
+                  ...Shadows.sm,
                 },
               ]}
             >
               <Ionicons
-                name="school-outline"
-                size={22}
+                name="school"
+                size={20}
                 color={colors.primary}
                 style={{ marginRight: 10 }}
               />
@@ -500,12 +525,14 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginBottom: Spacing.xl,
     marginTop: -Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   forgotText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   loginButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -516,8 +543,9 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 1.5,
+    textAlign: 'center',
   },
   dividerRow: {
     flexDirection: 'row',
@@ -531,9 +559,10 @@ const styles = StyleSheet.create({
   dividerText: {
     marginHorizontal: Spacing.lg,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   ssoButton: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -543,7 +572,8 @@ const styles = StyleSheet.create({
   },
   ssoButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
   },
   footer: {
     alignItems: 'center',
@@ -551,5 +581,6 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
+    fontWeight: '500',
   },
 });
