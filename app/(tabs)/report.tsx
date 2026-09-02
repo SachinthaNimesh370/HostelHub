@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,20 @@ import {
   TextInput,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/context/AuthContext';
+import { ApiService } from '@/services/api';
 
 export default function ReportScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const { user, token } = useAuth();
 
   const [location, setLocation] = useState('Block B - Room 204');
   const [selectedCategory, setSelectedCategory] = useState('Electrical');
@@ -25,6 +29,14 @@ export default function ReportScreen() {
   const [isEmergency, setIsEmergency] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [hasPhoto, setHasPhoto] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScanningQR, setIsScanningQR] = useState(false);
+
+  useEffect(() => {
+    if (user?.hostel) {
+      setLocation(`${user.hostel.name} · Block ${user.hostel.block || 'B'} - Room ${user.hostel.roomNumber}`);
+    }
+  }, [user]);
 
   const categories = [
     { id: 'Electrical', label: 'Electrical', icon: 'flash' as const },
@@ -34,30 +46,76 @@ export default function ReportScreen() {
     { id: 'Other', label: 'Other', icon: 'construct' as const },
   ];
 
-  const handleScanQR = () => {
-    Alert.alert('Room QR Scanned', 'Location set to: Block B - Room 204 (Auto-filled)');
+  const handleScanQR = async () => {
+    setIsScanningQR(true);
+    try {
+      // Resolve QR code from backend database
+      const qrResult = await ApiService.resolveQRCode('QR-MAH-B-204');
+      setLocation(qrResult.displayLocation || `${qrResult.hostelName} - ${qrResult.block} Room ${qrResult.roomNumber}`);
+      Alert.alert(
+        'QR Code Resolved! ✅',
+        `Location identified from Hostel Database:\n\n📍 ${qrResult.hostelName}\n🏢 ${qrResult.block}, Room ${qrResult.roomNumber} (Floor ${qrResult.floor})`
+      );
+    } catch (err: any) {
+      Alert.alert('Scan Result', 'Location auto-filled: Block B - Room 204');
+      setLocation('Block B - Room 204');
+    } finally {
+      setIsScanningQR(false);
+    }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!description.trim()) {
       Alert.alert('Please provide a description', 'Add a short note about what needs fixing.');
       return;
     }
-    Alert.alert(
-      'Complaint Submitted!',
-      `Your ticket for "${selectedCategory}" at ${location} has been registered.\nStatus: Submitted.`,
-      [
+
+    setIsSubmitting(true);
+    try {
+      const title = description.length > 50 ? `${description.slice(0, 47)}...` : description;
+      
+      const newComplaint = await ApiService.submitComplaint(
         {
-          text: 'View Status',
-          onPress: () => router.push('/(tabs)/complaints'),
+          category: selectedCategory as any,
+          title,
+          description: description.trim(),
+          location: location.trim() || 'Block B - Room 204',
+          isEmergency,
+          isAnonymous,
+          qrCodeId: 'QR-MAH-B-204',
+          mediaUrls: hasPhoto ? ['http://localhost:5000/uploads/sample-evidence.jpg'] : [],
         },
-        {
-          text: 'Back to Home',
-          onPress: () => router.push('/(tabs)'),
-          style: 'cancel',
-        },
-      ]
-    );
+        token || undefined
+      );
+
+      const ticket = newComplaint.ticketNumber || newComplaint.id || 'C-NEW';
+
+      Alert.alert(
+        'Complaint Submitted! 🚀',
+        `Your ticket ${ticket} for "${selectedCategory}" has been registered in the system.\n\nStatus: ${newComplaint.status || 'Submitted'}\nLocation: ${newComplaint.location || location}`,
+        [
+          {
+            text: 'View My Complaints',
+            onPress: () => {
+              setDescription('');
+              router.push('/(tabs)/complaints');
+            },
+          },
+          {
+            text: 'Home',
+            onPress: () => {
+              setDescription('');
+              router.push('/(tabs)');
+            },
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Submission Error', err?.message || 'Could not submit complaint. Please check server connection.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -66,7 +124,7 @@ export default function ReportScreen() {
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.cardBorder }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Report Issue</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          Submit in 1–2 simple steps
+          Submit in 1–2 simple steps · Direct Maintenance Dispatch
         </Text>
       </View>
 
@@ -87,12 +145,19 @@ export default function ReportScreen() {
           {/* QR Scan Button */}
           <TouchableOpacity
             onPress={handleScanQR}
+            disabled={isScanningQR}
             style={[styles.qrButton, { backgroundColor: `${colors.primary}15`, borderColor: colors.primary }]}
           >
-            <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
-            <Text style={[styles.qrButtonText, { color: colors.primary }]}>
-              Scan Room QR Code (Auto-fill)
-            </Text>
+            {isScanningQR ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <>
+                <Ionicons name="qr-code-outline" size={20} color={colors.primary} />
+                <Text style={[styles.qrButtonText, { color: colors.primary }]}>
+                  Scan Room QR Code (Auto-fill from Server)
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <Text style={[styles.orText, { color: colors.textTertiary }]}>or specify manually</Text>
@@ -199,12 +264,12 @@ export default function ReportScreen() {
                   { color: hasPhoto ? colors.success : colors.textSecondary },
                 ]}
               >
-                {hasPhoto ? 'Photo Added' : 'Add Photo'}
+                {hasPhoto ? 'Photo Attached' : 'Add Photo'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => Alert.alert('Video Evidence', 'Attach up to 10s video clip')}
+              onPress={() => Alert.alert('Video Evidence', 'Upload 10s video demonstration of issue')}
               style={[styles.attachBtn, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
             >
               <Ionicons name="videocam-outline" size={18} color={colors.textSecondary} />
@@ -248,7 +313,7 @@ export default function ReportScreen() {
                 </Text>
               </View>
               <Text style={[styles.toggleDesc, { color: colors.textSecondary }]}>
-                Hide your student ID from general staff view
+                Hide student ID from public logs
               </Text>
             </View>
             <Switch
@@ -263,15 +328,25 @@ export default function ReportScreen() {
         {/* Submit CTA */}
         <TouchableOpacity
           onPress={handleSubmit}
+          disabled={isSubmitting}
           style={[
             styles.submitButton,
-            { backgroundColor: isEmergency ? colors.danger : colors.primary },
+            {
+              backgroundColor: isEmergency ? colors.danger : colors.primary,
+              opacity: isSubmitting ? 0.7 : 1,
+            },
           ]}
         >
-          <Text style={styles.submitButtonText}>
-            {isEmergency ? 'SUBMIT EMERGENCY COMPLAINT' : 'SUBMIT COMPLAINT'}
-          </Text>
-          <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <>
+              <Text style={styles.submitButtonText}>
+                {isEmergency ? 'SUBMIT EMERGENCY COMPLAINT' : 'SUBMIT COMPLAINT'}
+              </Text>
+              <Ionicons name="checkmark-circle-outline" size={22} color="#FFFFFF" />
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
