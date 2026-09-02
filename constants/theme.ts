@@ -1,6 +1,6 @@
 /**
  * HostelHub Design Tokens
- * Premium color palette for the hostel maintenance complaint app.
+ * 2 Themes: Light Theme and Dark Theme
  */
 
 import { Platform } from 'react-native';
@@ -8,111 +8,111 @@ import { Platform } from 'react-native';
 export const Colors = {
   light: {
     // Core
-    text: '#1A1D2E',
-    textSecondary: '#6B7194',
-    textTertiary: '#9CA3C4',
-    background: '#F5F6FA',
+    text: '#0F172A',
+    textSecondary: '#475569',
+    textTertiary: '#94A3B8',
+    background: '#F1F5F9',
     surface: '#FFFFFF',
-    tint: '#5B5FE6',
+    tint: '#4F46E5',
 
     // Brand
-    primary: '#5B5FE6',
-    primaryLight: '#8184ED',
-    primaryDark: '#4346B5',
-    primaryGradientStart: '#5B5FE6',
-    primaryGradientEnd: '#8B5CF6',
+    primary: '#4F46E5',
+    primaryLight: '#6366F1',
+    primaryDark: '#3730A3',
+    primaryGradientStart: '#4F46E5',
+    primaryGradientEnd: '#7C3AED',
 
     // Semantic
-    danger: '#EF4444',
+    danger: '#DC2626',
     dangerLight: '#FEE2E2',
-    dangerGradientStart: '#EF4444',
-    dangerGradientEnd: '#F97316',
-    success: '#10B981',
+    dangerGradientStart: '#DC2626',
+    dangerGradientEnd: '#EA580C',
+    success: '#059669',
     successLight: '#D1FAE5',
-    warning: '#F59E0B',
+    warning: '#D97706',
     warningLight: '#FEF3C7',
-    info: '#3B82F6',
+    info: '#2563EB',
     infoLight: '#DBEAFE',
 
     // UI Elements
     card: '#FFFFFF',
-    cardBorder: '#E8EAF2',
-    cardShadow: 'rgba(91, 95, 230, 0.08)',
-    inputBackground: '#F0F1F8',
-    inputBorder: '#DDE0EE',
-    inputFocusBorder: '#5B5FE6',
-    divider: '#E8EAF2',
+    cardBorder: '#E2E8F0',
+    cardShadow: 'rgba(15, 23, 42, 0.08)',
+    inputBackground: '#F8FAFC',
+    inputBorder: '#CBD5E1',
+    inputFocusBorder: '#4F46E5',
+    divider: '#E2E8F0',
 
     // Status colors (complaint tracking)
-    statusSubmitted: '#3B82F6',
-    statusAssigned: '#F59E0B',
-    statusInProgress: '#8B5CF6',
-    statusResolved: '#10B981',
+    statusSubmitted: '#2563EB',
+    statusAssigned: '#D97706',
+    statusInProgress: '#7C3AED',
+    statusResolved: '#059669',
 
     // Tab bar
-    icon: '#9CA3C4',
-    tabIconDefault: '#9CA3C4',
-    tabIconSelected: '#5B5FE6',
+    icon: '#64748B',
+    tabIconDefault: '#94A3B8',
+    tabIconSelected: '#4F46E5',
     tabBar: '#FFFFFF',
-    tabBarBorder: '#E8EAF2',
+    tabBarBorder: '#E2E8F0',
 
     // Misc
-    overlay: 'rgba(26, 29, 46, 0.5)',
-    shimmer: '#E8EAF2',
+    overlay: 'rgba(15, 23, 42, 0.5)',
+    shimmer: '#E2E8F0',
   },
   dark: {
     // Core
-    text: '#F0F1F8',
-    textSecondary: '#9CA3C4',
-    textTertiary: '#6B7194',
-    background: '#0F1019',
-    surface: '#1A1D2E',
-    tint: '#8184ED',
+    text: '#F8FAFC',
+    textSecondary: '#94A3B8',
+    textTertiary: '#64748B',
+    background: '#0B0F19',
+    surface: '#131B2E',
+    tint: '#818CF8',
 
     // Brand
-    primary: '#8184ED',
-    primaryLight: '#A5A7F2',
-    primaryDark: '#5B5FE6',
-    primaryGradientStart: '#5B5FE6',
+    primary: '#6366F1',
+    primaryLight: '#818CF8',
+    primaryDark: '#4F46E5',
+    primaryGradientStart: '#6366F1',
     primaryGradientEnd: '#8B5CF6',
 
     // Semantic
-    danger: '#F87171',
-    dangerLight: '#3B1616',
+    danger: '#EF4444',
+    dangerLight: '#3B151E',
     dangerGradientStart: '#EF4444',
     dangerGradientEnd: '#F97316',
-    success: '#34D399',
-    successLight: '#0D3325',
-    warning: '#FBBF24',
-    warningLight: '#3B2F0A',
-    info: '#60A5FA',
-    infoLight: '#1E2A4A',
+    success: '#10B981',
+    successLight: '#062E20',
+    warning: '#F59E0B',
+    warningLight: '#332205',
+    info: '#38BDF8',
+    infoLight: '#0C2B47',
 
     // UI Elements
-    card: '#1A1D2E',
-    cardBorder: '#2A2D3E',
-    cardShadow: 'rgba(0, 0, 0, 0.3)',
-    inputBackground: '#252840',
-    inputBorder: '#2A2D3E',
-    inputFocusBorder: '#8184ED',
-    divider: '#2A2D3E',
+    card: '#131B2E',
+    cardBorder: '#1E293B',
+    cardShadow: 'rgba(0, 0, 0, 0.4)',
+    inputBackground: '#1E293B',
+    inputBorder: '#334155',
+    inputFocusBorder: '#818CF8',
+    divider: '#1E293B',
 
     // Status colors (complaint tracking)
-    statusSubmitted: '#60A5FA',
+    statusSubmitted: '#38BDF8',
     statusAssigned: '#FBBF24',
     statusInProgress: '#A78BFA',
     statusResolved: '#34D399',
 
     // Tab bar
-    icon: '#6B7194',
-    tabIconDefault: '#6B7194',
-    tabIconSelected: '#8184ED',
-    tabBar: '#1A1D2E',
-    tabBarBorder: '#2A2D3E',
+    icon: '#94A3B8',
+    tabIconDefault: '#64748B',
+    tabIconSelected: '#818CF8',
+    tabBar: '#131B2E',
+    tabBarBorder: '#1E293B',
 
     // Misc
     overlay: 'rgba(0, 0, 0, 0.7)',
-    shimmer: '#2A2D3E',
+    shimmer: '#1E293B',
   },
 };
 
@@ -159,21 +159,21 @@ export const Fonts = Platform.select({
 
 export const Shadows = {
   sm: {
-    shadowColor: '#5B5FE6',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   md: {
-    shadowColor: '#5B5FE6',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 4,
   },
   lg: {
-    shadowColor: '#5B5FE6',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
