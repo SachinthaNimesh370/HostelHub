@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,26 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  TextInput,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-
 import { useAppTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { colorScheme, isDark, toggleTheme, setTheme } = useAppTheme();
   const colors = Colors[colorScheme];
+  const { user, logout, serverOnline, checkServerHealth, backendUrl, updateBackendUrl } = useAuth();
+
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [customUrl, setCustomUrl] = useState(backendUrl);
+  const [isChecking, setIsChecking] = useState(false);
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of HostelHub?', [
@@ -25,29 +33,63 @@ export default function ProfileScreen() {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => router.replace('/(auth)/login'),
+        onPress: () => {
+          logout();
+          router.replace('/(auth)/login');
+        },
       },
     ]);
   };
+
+  const handleTestConnection = async () => {
+    setIsChecking(true);
+    const online = await checkServerHealth();
+    setIsChecking(false);
+    if (online) {
+      Alert.alert('Backend Status', '🟢 Successfully connected to HostelHub Backend Server!');
+    } else {
+      Alert.alert('Backend Status', '🔴 Could not reach backend server at ' + backendUrl);
+    }
+  };
+
+  const handleSaveBackendUrl = () => {
+    if (!customUrl.trim()) return;
+    updateBackendUrl(customUrl.trim());
+    setIsUrlModalOpen(false);
+    Alert.alert('Backend URL Updated', `API endpoint set to:\n${customUrl.trim()}`);
+  };
+
+  const initials = user?.fullName
+    ? user.fullName
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase()
+    : 'SN';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.cardBorder }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Student Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>User Profile</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
           <View style={[styles.avatarWrap, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>SN</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={[styles.studentName, { color: colors.text }]}>Sachintha Nimesh</Text>
-          <Text style={[styles.studentId, { color: colors.primary }]}>2021E103</Text>
+          <Text style={[styles.studentName, { color: colors.text }]}>
+            {user?.fullName || 'Sachintha Nimesh'}
+          </Text>
+          <Text style={[styles.studentId, { color: colors.primary }]}>
+            {user?.studentId || '2021E103'} ({user?.role || 'STUDENT'})
+          </Text>
           <View style={[styles.badgePill, { backgroundColor: `${colors.primary}15` }]}>
             <Text style={[styles.badgePillText, { color: colors.primary }]}>
-              Faculty of Engineering
+              {user?.faculty || 'Faculty of Engineering'}
             </Text>
           </View>
         </View>
@@ -59,7 +101,9 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="business-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Hostel:</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>Mahanama Hall (Block B)</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>
+              {user?.hostel?.name || 'Mahanama Hall'} (Block {user?.hostel?.block || 'B'})
+            </Text>
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.divider }]} />
@@ -67,7 +111,9 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="key-outline" size={18} color={colors.primary} />
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Room Number:</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>Room 204</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>
+              Room {user?.hostel?.roomNumber || '204'}
+            </Text>
           </View>
 
           <View style={[styles.divider, { backgroundColor: colors.divider }]} />
@@ -75,8 +121,54 @@ export default function ProfileScreen() {
           <View style={styles.infoRow}>
             <Ionicons name="shield-checkmark-outline" size={18} color={colors.success} />
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Sub-Warden:</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>Dr. K. Gunasekara</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>
+              {user?.hostel?.subWarden?.name || 'Dr. K. Gunasekara'}
+            </Text>
           </View>
+        </View>
+
+        {/* Backend Connectivity Status */}
+        <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Backend API Connection</Text>
+
+          <View style={styles.serverRow}>
+            <View style={styles.serverLeft}>
+              <View style={[styles.serverDot, { backgroundColor: serverOnline ? '#10B981' : '#EF4444' }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.serverStatusTitle, { color: colors.text }]}>
+                  {serverOnline ? 'Backend Server Online' : 'Backend Server Offline'}
+                </Text>
+                <Text style={[styles.serverEndpoint, { color: colors.textTertiary }]} numberOfLines={1}>
+                  {backendUrl}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleTestConnection}
+              disabled={isChecking}
+              style={[styles.testBtn, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+            >
+              {isChecking ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text style={[styles.testBtnText, { color: colors.primary }]}>Ping</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => {
+              setCustomUrl(backendUrl);
+              setIsUrlModalOpen(true);
+            }}
+            style={[styles.changeUrlBtn, { borderColor: colors.inputBorder }]}
+          >
+            <Ionicons name="settings-outline" size={16} color={colors.textSecondary} />
+            <Text style={[styles.changeUrlText, { color: colors.textSecondary }]}>
+              Configure API Server Host / Port
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Preferences */}
@@ -138,19 +230,6 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={styles.menuRow}>
             <View style={styles.menuLeft}>
-              <Ionicons name="language-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuTitle, { color: colors.text }]}>Language</Text>
-            </View>
-            <View style={styles.menuRight}>
-              <Text style={[styles.menuValue, { color: colors.textSecondary }]}>English</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-            </View>
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuLeft}>
               <Ionicons name="notifications-outline" size={20} color={colors.primary} />
               <Text style={[styles.menuTitle, { color: colors.text }]}>Push Notifications</Text>
             </View>
@@ -158,16 +237,6 @@ export default function ProfileScreen() {
               <Text style={[styles.menuValue, { color: colors.success }]}>Enabled</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
             </View>
-          </TouchableOpacity>
-
-          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-
-          <TouchableOpacity style={styles.menuRow}>
-            <View style={styles.menuLeft}>
-              <Ionicons name="help-circle-outline" size={20} color={colors.primary} />
-              <Text style={[styles.menuTitle, { color: colors.text }]}>Hostel Office Contacts</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
@@ -180,6 +249,49 @@ export default function ProfileScreen() {
           <Text style={[styles.logoutText, { color: colors.danger }]}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Backend URL Config Modal */}
+      <Modal
+        visible={isUrlModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsUrlModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.modalHeading, { color: colors.text }]}>Configure Backend API</Text>
+            <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
+              Enter the Express.js server address (e.g. your computer's IP address on Wi-Fi):
+            </Text>
+
+            <TextInput
+              style={[styles.urlInput, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.text }]}
+              value={customUrl}
+              onChangeText={setCustomUrl}
+              placeholder="http://192.168.1.100:5000/api/v1"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                onPress={() => setIsUrlModalOpen(false)}
+                style={[styles.modalCancelBtn, { backgroundColor: colors.inputBackground }]}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveBackendUrl}
+                style={[styles.modalSaveBtn, { backgroundColor: colors.primary }]}
+              >
+                <Text style={styles.modalSaveText}>Save & Reconnect</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -255,8 +367,8 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xs,
     gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   infoLabel: {
     fontSize: 13,
@@ -271,35 +383,56 @@ const styles = StyleSheet.create({
     height: 1,
     marginVertical: Spacing.sm,
   },
-  themeRow: {
+  serverRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.xs,
+    gap: Spacing.sm,
   },
-  menuSubtitle: {
-    fontSize: 12,
-    marginTop: 1,
-  },
-  themePills: {
-    flexDirection: 'row',
-    borderRadius: BorderRadius.full,
-    padding: 3,
-    gap: 3,
-  },
-  themePill: {
+  serverLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  serverDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  serverStatusTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  serverEndpoint: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  testBtn: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: 5,
-    borderRadius: BorderRadius.full,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
   },
-  themePillActive: {},
-  themePillText: {
+  testBtnText: {
     fontSize: 12,
+    fontWeight: '700',
   },
-  menuRow: {
+  changeUrlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginTop: Spacing.md,
+  },
+  changeUrlText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  themeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -308,11 +441,38 @@ const styles = StyleSheet.create({
   menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.md,
   },
   menuTitle: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  themePills: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: BorderRadius.full,
+  },
+  themePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+  },
+  themePillActive: {},
+  themePillText: {
+    fontSize: 11,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.xs,
   },
   menuRight: {
     flexDirection: 'row',
@@ -321,19 +481,72 @@ const styles = StyleSheet.create({
   },
   menuValue: {
     fontSize: 13,
+    fontWeight: '600',
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    height: 52,
+    paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     marginTop: Spacing.xs,
   },
   logoutText: {
     fontSize: 15,
+    fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  modalCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  modalHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalSub: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  urlInput: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: 13,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modalSaveBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

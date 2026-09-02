@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,74 +7,135 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ComplaintCard, ComplaintItem } from '@/components/ComplaintCard';
 import { StatusBadge, ComplaintStatus } from '@/components/StatusBadge';
-
-const SAMPLE_COMPLAINTS: ComplaintItem[] = [
-  {
-    id: 'C-1024',
-    title: 'Ceiling Fan Not Rotating',
-    category: 'Electrical',
-    location: 'Block B - Room 204',
-    status: 'In Progress',
-    eta: 'Today, 4:30 PM',
-    assignedStaff: 'K. Bandara (Electrician)',
-    createdAt: 'Sep 2, 09:15 AM',
-  },
-  {
-    id: 'C-1023',
-    title: 'Water Pipe Leaking under Sink',
-    category: 'Water Leak',
-    location: '2nd Floor Washroom B',
-    status: 'Assigned',
-    eta: 'Tomorrow, 10:00 AM',
-    assignedStaff: 'S. Perera (Plumber)',
-    isEmergency: true,
-    createdAt: 'Sep 2, 08:30 AM',
-  },
-  {
-    id: 'C-1021',
-    title: 'Door Handle Broken',
-    category: 'Door Lock',
-    location: 'Block B - Room 204',
-    status: 'Submitted',
-    eta: 'Awaiting Staff Assignment',
-    createdAt: 'Sep 1, 04:20 PM',
-  },
-  {
-    id: 'C-0998',
-    title: 'Study Desk Drawer Stuck',
-    category: 'Furniture',
-    location: 'Block B - Room 204',
-    status: 'Resolved',
-    assignedStaff: 'M. Fernando (Carpenter)',
-    createdAt: 'Aug 28, 02:00 PM',
-  },
-  {
-    id: 'C-0985',
-    title: 'Tube Light Flickering',
-    category: 'Electrical',
-    location: 'Block B - Room 204',
-    status: 'Resolved',
-    assignedStaff: 'K. Bandara (Electrician)',
-    createdAt: 'Aug 24, 11:30 AM',
-  },
-];
+import { useAuth } from '@/context/AuthContext';
+import { ApiService, ComplaintDetail, ChatMessage } from '@/services/api';
 
 export default function ComplaintsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
+  const { user, token } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'All' | 'Active' | 'Resolved'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
+  const [rawComplaints, setRawComplaints] = useState<ComplaintDetail[]>([]);
   const [selectedComplaint, setSelectedComplaint] = useState<ComplaintItem | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<ComplaintDetail | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatMessage, setChatMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
-  const filteredComplaints = SAMPLE_COMPLAINTS.filter((c) => {
+  const loadComplaints = useCallback(async () => {
+    try {
+      const filterKey = activeTab === 'All' ? 'all' : activeTab === 'Active' ? 'active' : 'resolved';
+      const list = await ApiService.getComplaints(filterKey, token || undefined);
+      setRawComplaints(list);
+
+      const mapped: ComplaintItem[] = list.map((c) => ({
+        id: c.ticketNumber || c.id,
+        rawId: c.id,
+        title: c.title,
+        category: (c.category as any) || 'Other',
+        location: c.location,
+        status: c.status,
+        eta: c.eta || (c.status === 'Submitted' ? 'Awaiting Assignment' : c.status === 'Resolved' ? 'Completed' : 'In Progress'),
+        assignedStaff: c.assignedStaff ? `${c.assignedStaff.name} (${c.assignedStaff.role || 'Staff'})` : undefined,
+        isEmergency: c.isEmergency,
+        createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
+      } as ComplaintItem & { rawId: string }));
+
+      setComplaints(mapped);
+    } catch (err) {
+      console.warn('Could not fetch complaints', err);
+    }
+  }, [activeTab, token]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadComplaints().finally(() => setLoading(false));
+  }, [loadComplaints]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadComplaints();
+    setRefreshing(false);
+  };
+
+  // Load modal details & messages when a complaint is selected
+  const handleOpenComplaint = async (item: ComplaintItem) => {
+    setSelectedComplaint(item);
+    setFeedbackSubmitted(false);
+    
+    // Find matching raw complaint or fetch from backend
+    const raw = rawComplaints.find((c) => c.ticketNumber === item.id || c.id === item.id);
+    const targetId = raw?.id || (item as any).rawId || item.id;
+
+    try {
+      const detail = await ApiService.getComplaintById(targetId, token || undefined);
+      setSelectedDetail(detail);
+
+      const msgs = await ApiService.getMessages(targetId, token || undefined);
+      setMessages(msgs);
+    } catch (e) {
+      if (raw) setSelectedDetail(raw);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim() || !selectedComplaint) return;
+    const raw = rawComplaints.find((c) => c.ticketNumber === selectedComplaint.id || c.id === selectedComplaint.id);
+    const targetId = raw?.id || (selectedComplaint as any).rawId || selectedComplaint.id;
+    const textToSend = chatMessage.trim();
+    setChatMessage('');
+    setIsSendingChat(true);
+
+    try {
+      const newMsg = await ApiService.sendMessage(targetId, textToSend, token || undefined);
+      setMessages((prev) => [...prev, newMsg]);
+    } catch (err: any) {
+      Alert.alert('Chat Error', err?.message || 'Failed to send message.');
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (!selectedComplaint) return;
+    const raw = rawComplaints.find((c) => c.ticketNumber === selectedComplaint.id || c.id === selectedComplaint.id);
+    const targetId = raw?.id || (selectedComplaint as any).rawId || selectedComplaint.id;
+
+    try {
+      await ApiService.submitFeedback(
+        targetId,
+        {
+          staffRating: rating,
+          speedRating: rating,
+          comments: 'Service completed satisfactorily.',
+          isSatisfied: rating >= 3,
+        },
+        token || undefined
+      );
+      setFeedbackSubmitted(true);
+      Alert.alert('Thank you!', 'Your feedback helps improve hostel maintenance services.');
+    } catch (err: any) {
+      Alert.alert('Feedback Error', err?.message || 'Could not record rating.');
+    }
+  };
+
+  const filteredComplaints = complaints.filter((c) => {
     const matchesTab =
       activeTab === 'All'
         ? true
@@ -91,7 +152,6 @@ export default function ComplaintsScreen() {
   });
 
   const stages: ComplaintStatus[] = ['Submitted', 'Assigned', 'In Progress', 'Resolved'];
-
   const getStageIndex = (status: ComplaintStatus) => stages.indexOf(status);
 
   return (
@@ -100,7 +160,7 @@ export default function ComplaintsScreen() {
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.cardBorder }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Complaints</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-          Real-time status tracking & repair progress
+          Real-time status tracking & live repair updates
         </Text>
 
         {/* Tab Control */}
@@ -126,7 +186,6 @@ export default function ComplaintsScreen() {
                   ]}
                 >
                   {tab}
-                  {tab === 'Active' && ' (3)'}
                 </Text>
               </TouchableOpacity>
             );
@@ -155,8 +214,23 @@ export default function ComplaintsScreen() {
       <ScrollView
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {filteredComplaints.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary, marginTop: Spacing.sm }]}>
+              Loading tickets from server...
+            </Text>
+          </View>
+        ) : filteredComplaints.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="file-tray-outline" size={48} color={colors.textTertiary} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No Complaints Found</Text>
@@ -169,7 +243,7 @@ export default function ComplaintsScreen() {
             <ComplaintCard
               key={item.id}
               item={item}
-              onPress={() => setSelectedComplaint(item)}
+              onPress={() => handleOpenComplaint(item)}
             />
           ))
         )}
@@ -186,11 +260,11 @@ export default function ComplaintsScreen() {
           <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             {/* Modal Header */}
             <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.cardBorder }]}>
-              <View>
+              <View style={{ flex: 1, paddingRight: Spacing.md }}>
                 <Text style={[styles.modalTicketId, { color: colors.primary }]}>
                   Ticket #{selectedComplaint.id}
                 </Text>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
+                <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>
                   {selectedComplaint.title}
                 </Text>
               </View>
@@ -203,7 +277,7 @@ export default function ComplaintsScreen() {
             </View>
 
             <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {/* Four-stage horizontal progress tracker (PDF Section 5.5) */}
+              {/* Four-stage horizontal progress tracker */}
               <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
                 <Text style={[styles.modalSectionTitle, { color: colors.text }]}>
                   Status Tracker
@@ -262,23 +336,32 @@ export default function ComplaintsScreen() {
                 </View>
               </View>
 
-              {/* Staff & ETA Card */}
+              {/* Assignment & Timing Card */}
               <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
                 <Text style={[styles.modalSectionTitle, { color: colors.text }]}>
-                  Assignment & Timing
+                  Assignment & Details
                 </Text>
                 <View style={styles.infoRow}>
                   <Ionicons name="person-outline" size={18} color={colors.primary} />
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Staff:</Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>
-                    {selectedComplaint.assignedStaff || 'Pending assignment'}
+                    {selectedDetail?.assignedStaff?.name || selectedComplaint.assignedStaff || 'Pending assignment'}
                   </Text>
                 </View>
+                {selectedDetail?.assignedStaff?.phone && (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="call-outline" size={18} color={colors.success} />
+                    <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Contact:</Text>
+                    <Text style={[styles.infoValue, { color: colors.success, fontWeight: '700' }]}>
+                      {selectedDetail.assignedStaff.phone}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.infoRow}>
                   <Ionicons name="time-outline" size={18} color={colors.warning} />
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Estimated ETA:</Text>
                   <Text style={[styles.infoValue, { color: colors.text }]}>
-                    {selectedComplaint.eta || 'Within 24 hours'}
+                    {selectedDetail?.eta || selectedComplaint.eta || 'Within 24 hours'}
                   </Text>
                 </View>
                 <View style={styles.infoRow}>
@@ -290,7 +373,47 @@ export default function ComplaintsScreen() {
                 </View>
               </View>
 
-              {/* In-app Chat with Staff (PDF Section 5.5 - 33.6% top requested) */}
+              {/* Post-Repair Satisfaction Rating (If Resolved) */}
+              {selectedComplaint.status === 'Resolved' && (
+                <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
+                  <Text style={[styles.modalSectionTitle, { color: colors.text }]}>
+                    Repair Satisfaction Feedback
+                  </Text>
+                  {feedbackSubmitted ? (
+                    <View style={styles.feedbackSuccess}>
+                      <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                      <Text style={[styles.feedbackSuccessText, { color: colors.success }]}>
+                        Feedback submitted. Thank you!
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={styles.ratingBox}>
+                      <Text style={[styles.ratingLabel, { color: colors.textSecondary }]}>
+                        How would you rate the repair quality?
+                      </Text>
+                      <View style={styles.starRow}>
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <TouchableOpacity key={s} onPress={() => setRating(s)}>
+                            <Ionicons
+                              name={s <= rating ? 'star' : 'star-outline'}
+                              size={28}
+                              color="#FBBF24"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <TouchableOpacity
+                        onPress={handleFeedbackSubmit}
+                        style={[styles.feedbackBtn, { backgroundColor: colors.primary }]}
+                      >
+                        <Text style={styles.feedbackBtnText}>Submit Rating</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* In-app Chat with Staff */}
               <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
                 <View style={styles.chatHeader}>
                   <Ionicons name="chatbubbles-outline" size={20} color={colors.primary} />
@@ -300,22 +423,48 @@ export default function ComplaintsScreen() {
                 </View>
 
                 <View style={styles.chatBox}>
-                  <View style={[styles.chatBubbleStaff, { backgroundColor: colors.inputBackground }]}>
-                    <Text style={[styles.chatAuthor, { color: colors.primary }]}>
-                      {selectedComplaint.assignedStaff || 'Maintenance Helpdesk'}
+                  {messages.length === 0 ? (
+                    <Text style={[styles.noChatText, { color: colors.textTertiary }]}>
+                      No messages yet. Send a note to the assigned staff member below.
                     </Text>
-                    <Text style={[styles.chatMessageText, { color: colors.text }]}>
-                      Hello! I have been assigned to your issue. I will inspect the fan during the afternoon maintenance round.
-                    </Text>
-                    <Text style={[styles.chatTime, { color: colors.textTertiary }]}>10:15 AM</Text>
-                  </View>
-
-                  <View style={[styles.chatBubbleStudent, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.chatMessageTextStudent}>
-                      Thank you! Please knock before entering room 204.
-                    </Text>
-                    <Text style={styles.chatTimeStudent}>10:18 AM</Text>
-                  </View>
+                  ) : (
+                    messages.map((msg) => {
+                      const isStudent = msg.senderRole === 'STUDENT' || msg.senderId === user?.id;
+                      return (
+                        <View
+                          key={msg.id}
+                          style={[
+                            isStudent ? styles.chatBubbleStudent : styles.chatBubbleStaff,
+                            {
+                              backgroundColor: isStudent ? colors.primary : colors.inputBackground,
+                            },
+                          ]}
+                        >
+                          {!isStudent && (
+                            <Text style={[styles.chatAuthor, { color: colors.primary }]}>
+                              {msg.senderName || 'Staff'}
+                            </Text>
+                          )}
+                          <Text
+                            style={[
+                              isStudent ? styles.chatMessageTextStudent : styles.chatMessageText,
+                              !isStudent && { color: colors.text },
+                            ]}
+                          >
+                            {msg.message}
+                          </Text>
+                          <Text
+                            style={[
+                              isStudent ? styles.chatTimeStudent : styles.chatTime,
+                              !isStudent && { color: colors.textTertiary },
+                            ]}
+                          >
+                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
 
                 {/* Chat Composer */}
@@ -326,12 +475,18 @@ export default function ComplaintsScreen() {
                     placeholderTextColor={colors.textTertiary}
                     value={chatMessage}
                     onChangeText={setChatMessage}
+                    onSubmitEditing={handleSendMessage}
                   />
                   <TouchableOpacity
-                    onPress={() => setChatMessage('')}
+                    onPress={handleSendMessage}
+                    disabled={isSendingChat}
                     style={[styles.chatSendBtn, { backgroundColor: colors.primary }]}
                   >
-                    <Ionicons name="send" size={16} color="#FFFFFF" />
+                    {isSendingChat ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons name="send" size={16} color="#FFFFFF" />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -395,6 +550,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Spacing.lg,
     paddingBottom: 110,
+    gap: Spacing.md,
   },
   emptyState: {
     alignItems: 'center',
@@ -502,6 +658,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  ratingBox: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  ratingLabel: {
+    fontSize: 13,
+  },
+  starRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginVertical: Spacing.xs,
+  },
+  feedbackBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+  },
+  feedbackBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  feedbackSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+  },
+  feedbackSuccessText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -511,6 +701,11 @@ const styles = StyleSheet.create({
   chatBox: {
     gap: Spacing.sm,
     marginBottom: Spacing.md,
+  },
+  noChatText: {
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: Spacing.md,
   },
   chatBubbleStaff: {
     alignSelf: 'flex-start',

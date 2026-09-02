@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,53 +7,73 @@ import {
   TouchableOpacity,
   Pressable,
   Platform,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ComplaintCard, ComplaintItem } from '@/components/ComplaintCard';
-
 import { useAppTheme } from '@/context/ThemeContext';
-
-const ACTIVE_COMPLAINTS: ComplaintItem[] = [
-  {
-    id: 'C-1024',
-    title: 'Ceiling Fan Not Rotating',
-    category: 'Electrical',
-    location: 'Room 204',
-    status: 'In Progress',
-    eta: 'Today, 4:30 PM',
-    assignedStaff: 'K. Bandara (Electrician)',
-    createdAt: 'Sep 2, 09:15 AM',
-  },
-  {
-    id: 'C-1023',
-    title: 'Water Leak under Sink',
-    category: 'Water Leak',
-    location: '2F Washroom',
-    status: 'Assigned',
-    eta: 'Tomorrow, 10:00 AM',
-    assignedStaff: 'S. Perera (Plumber)',
-    isEmergency: true,
-    createdAt: 'Sep 2, 08:30 AM',
-  },
-  {
-    id: 'C-1021',
-    title: 'Door Handle Broken',
-    category: 'Door Lock',
-    location: 'Room 204',
-    status: 'Submitted',
-    eta: 'Awaiting Assignment',
-    createdAt: 'Sep 1, 04:20 PM',
-  },
-];
+import { useAuth } from '@/context/AuthContext';
+import { ApiService, ComplaintDetail, Announcement } from '@/services/api';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { colorScheme, isDark, toggleTheme } = useAppTheme();
   const colors = Colors[colorScheme];
+  const { user, token, serverOnline, checkServerHealth } = useAuth();
+
+  const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [fetchedComplaints, fetchedAnnouncements] = await Promise.allSettled([
+        ApiService.getComplaints('active', token || undefined),
+        ApiService.getAnnouncements(token || undefined),
+      ]);
+
+      if (fetchedComplaints.status === 'fulfilled' && Array.isArray(fetchedComplaints.value)) {
+        const mapped: ComplaintItem[] = fetchedComplaints.value.map((c) => ({
+          id: c.ticketNumber || c.id,
+          title: c.title,
+          category: (c.category as any) || 'Other',
+          location: c.location,
+          status: c.status,
+          eta: c.eta || (c.status === 'Submitted' ? 'Awaiting Assignment' : 'In Progress'),
+          assignedStaff: c.assignedStaff ? `${c.assignedStaff.name} (${c.assignedStaff.role || 'Staff'})` : undefined,
+          isEmergency: c.isEmergency,
+          createdAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently',
+        }));
+        setComplaints(mapped);
+      }
+
+      if (fetchedAnnouncements.status === 'fulfilled' && Array.isArray(fetchedAnnouncements.value)) {
+        setAnnouncements(fetchedAnnouncements.value);
+      }
+    } catch (e) {
+      console.warn('Could not fetch home data', e);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadData().finally(() => setLoading(false));
+  }, [loadData]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadData(), checkServerHealth()]);
+    setRefreshing(false);
+  };
+
+  const studentDisplayName = user?.fullName || 'Sachintha Nimesh';
+  const hostelName = user?.hostel?.name || 'Mahanama Hall';
+  const roomName = user?.hostel?.roomNumber ? `Block ${user.hostel.block || 'B'} - Room ${user.hostel.roomNumber}` : 'Block B - Room 204';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -72,12 +92,12 @@ export default function HomeScreen() {
             Welcome back,
           </Text>
           <Text style={[styles.studentName, { color: colors.text }]}>
-            Sachintha Nimesh 👋
+            {studentDisplayName} 👋
           </Text>
           <View style={styles.roomTag}>
             <Ionicons name="location" size={12} color={colors.primary} />
             <Text style={[styles.roomTagText, { color: colors.primary }]}>
-              Mahanama Hall · Block B - Room 204
+              {hostelName} · {roomName}
             </Text>
           </View>
         </View>
@@ -102,7 +122,7 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
 
-          {/* Notifications */}
+          {/* Notifications / Live status */}
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/complaints')}
             style={[
@@ -118,12 +138,14 @@ export default function HomeScreen() {
               size={20}
               color={colors.text}
             />
-            <View
-              style={[
-                styles.notifBadge,
-                { backgroundColor: colors.danger },
-              ]}
-            />
+            {complaints.length > 0 && (
+              <View
+                style={[
+                  styles.notifBadge,
+                  { backgroundColor: colors.danger },
+                ]}
+              />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -131,8 +153,16 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {/* 1. Emergency Banner (Priority Shortcut - PDF Section 5.2) */}
+        {/* 1. Emergency Banner (Priority Shortcut) */}
         <Animated.View entering={FadeInDown.delay(100).duration(600)}>
           <Pressable
             onPress={() => router.push('/(tabs)/report')}
@@ -162,7 +192,7 @@ export default function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        {/* 2. Primary Report Issue Action (PDF Section 5.2) */}
+        {/* 2. Primary Report Issue Action */}
         <Animated.View entering={FadeInDown.delay(200).duration(600)}>
           <Pressable
             onPress={() => router.push('/(tabs)/report')}
@@ -190,7 +220,7 @@ export default function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        {/* 3. Quick Actions Row (PDF Section 5.2) */}
+        {/* 3. Quick Actions Row */}
         <Animated.View entering={FadeInDown.delay(300).duration(600)}>
           <Text style={[styles.sectionHeading, { color: colors.text }]}>
             Quick Actions
@@ -279,7 +309,7 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* 4. Active Complaints Section (PDF Section 5.2) */}
+        {/* 4. Active Complaints Section */}
         <Animated.View entering={FadeInUp.delay(400).duration(600)}>
           <View style={styles.sectionHeaderRow}>
             <View>
@@ -295,27 +325,41 @@ export default function HomeScreen() {
               style={styles.viewAllBtn}
             >
               <Text style={[styles.viewAllText, { color: colors.primary }]}>
-                View All
+                View All ({complaints.length})
               </Text>
               <Ionicons name="chevron-forward" size={14} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
-          {/* Horizontal scrollable cards */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalScroll}
-          >
-            {ACTIVE_COMPLAINTS.map((item) => (
-              <ComplaintCard
-                key={item.id}
-                item={item}
-                compact={true}
-                onPress={() => router.push('/(tabs)/complaints')}
-              />
-            ))}
-          </ScrollView>
+          {loading ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.loaderText, { color: colors.textSecondary }]}>Fetching live status...</Text>
+            </View>
+          ) : complaints.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalScroll}
+            >
+              {complaints.map((item) => (
+                <ComplaintCard
+                  key={item.id}
+                  item={item}
+                  compact={true}
+                  onPress={() => router.push('/(tabs)/complaints')}
+                />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Ionicons name="checkmark-done-circle" size={36} color={colors.success} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>All Caught Up!</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                No active complaints reported for your room currently.
+              </Text>
+            </View>
+          )}
         </Animated.View>
 
         {/* 5. Hostel Notice Banner */}
@@ -333,11 +377,13 @@ export default function HomeScreen() {
             <View style={styles.noticeHeader}>
               <Ionicons name="megaphone-outline" size={18} color={colors.warning} />
               <Text style={[styles.noticeTitle, { color: colors.text }]}>
-                Sub-Warden Announcement
+                {announcements.length > 0 ? announcements[0].title : 'Hostel Announcement'}
               </Text>
             </View>
             <Text style={[styles.noticeBody, { color: colors.textSecondary }]}>
-              Scheduled electrical maintenance for Block B on Friday, 2:00 PM – 5:00 PM. Please report any urgent issues prior.
+              {announcements.length > 0
+                ? announcements[0].body
+                : 'Scheduled electrical maintenance for Block B on Friday, 2:00 PM – 5:00 PM. Please report any urgent issues prior.'}
             </Text>
           </View>
         </Animated.View>
@@ -398,29 +444,29 @@ const styles = StyleSheet.create({
   },
   notifBadge: {
     position: 'absolute',
-    top: 9,
-    right: 10,
+    top: 8,
+    right: 8,
     width: 8,
     height: 8,
-    borderRadius: BorderRadius.full,
+    borderRadius: 4,
   },
   scrollContent: {
-    padding: Spacing.lg,
-    paddingBottom: 110,
+    padding: Spacing.xl,
+    paddingBottom: Spacing.xxxl,
     gap: Spacing.xl,
   },
   emergencyCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
   },
   emergencyLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
     gap: Spacing.md,
+    flex: 1,
   },
   emergencyIconWrap: {
     width: 44,
@@ -437,18 +483,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: -0.2,
   },
   emergencySubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#FEE2E2',
     fontSize: 12,
+    fontWeight: '500',
     marginTop: 2,
   },
   primaryReportBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
   },
   reportBtnContent: {
     flexDirection: 'row',
@@ -468,36 +516,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: -0.2,
   },
   reportBtnSubtitle: {
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: '#E2E8F0',
     fontSize: 12,
+    fontWeight: '500',
     marginTop: 2,
   },
   sectionHeading: {
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: -0.3,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   sectionSubtitle: {
     fontSize: 12,
-    marginTop: -Spacing.xs,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
+    marginTop: 2,
   },
   quickActionsGrid: {
     flexDirection: 'row',
@@ -505,39 +541,82 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     flex: 1,
+    padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    padding: Spacing.md,
     alignItems: 'center',
   },
   quickActionIconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: BorderRadius.md,
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   quickActionLabel: {
     fontSize: 13,
     fontWeight: '700',
+    marginBottom: 2,
   },
   quickActionDesc: {
-    fontSize: 10,
-    marginTop: 1,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingTop: 4,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   horizontalScroll: {
-    paddingRight: Spacing.md,
+    gap: Spacing.md,
+    paddingRight: Spacing.xl,
   },
-  noticeCard: {
+  loaderContainer: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  loaderText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  emptyCard: {
+    padding: Spacing.xl,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  noticeCard: {
     padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
   },
   noticeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     marginBottom: Spacing.xs,
   },
   noticeTitle: {

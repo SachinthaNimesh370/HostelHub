@@ -9,6 +9,8 @@ import {
   Platform,
   ScrollView,
   Pressable,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -26,20 +28,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAppTheme } from '@/context/ThemeContext';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { colorScheme, isDark, toggleTheme } = useAppTheme();
   const colors = Colors[colorScheme];
+  const { login, loginSSO, isLoading, serverOnline, checkServerHealth } = useAuth();
 
-  const [studentId, setStudentId] = useState('');
-  const [password, setPassword] = useState('');
+  const [studentId, setStudentId] = useState('2021E103');
+  const [password, setPassword] = useState('123123');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedLang, setSelectedLang] = useState('EN');
   const [isFocusedId, setIsFocusedId] = useState(false);
   const [isFocusedPw, setIsFocusedPw] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const passwordRef = useRef<TextInput>(null);
 
@@ -66,9 +69,39 @@ export default function LoginScreen() {
     opacity: 0.1 + orbFloat.value * 0.08,
   }));
 
-  const handleLogin = () => {
-    // For now, navigate directly to the home screen
-    router.replace('/(tabs)');
+  const handleLogin = async () => {
+    if (!studentId.trim() || !password.trim()) {
+      setErrorMessage('Please enter both your Student ID and Password.');
+      return;
+    }
+
+    setErrorMessage(null);
+    try {
+      await login(studentId.trim(), password.trim());
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const msg = err?.message || 'Login failed. Please verify credentials.';
+      setErrorMessage(msg);
+      Alert.alert('Login Error', msg);
+    }
+  };
+
+  const handleSSOLogin = async () => {
+    setErrorMessage(null);
+    try {
+      await loginSSO('sample_sso_token_student_2021e103');
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      const msg = err?.message || 'SSO Authentication failed.';
+      setErrorMessage(msg);
+      Alert.alert('SSO Error', msg);
+    }
+  };
+
+  const quickFill = (id: string, pass: string) => {
+    setStudentId(id);
+    setPassword(pass);
+    setErrorMessage(null);
   };
 
   const languages = ['EN', 'සිං', 'தமி'];
@@ -104,7 +137,7 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Top Bar: Language Selector + Theme Toggle */}
+          {/* Top Bar: Language Selector + Theme Toggle + Backend Status */}
           <Animated.View
             entering={FadeInDown.delay(100).duration(600)}
             style={styles.topControlRow}
@@ -154,34 +187,55 @@ export default function LoginScreen() {
               })}
             </View>
 
-            {/* Theme Toggle Button */}
-            <TouchableOpacity
-              onPress={toggleTheme}
-              activeOpacity={0.8}
-              style={[
-                styles.themeToggleBtn,
-                {
-                  backgroundColor: isDark ? colors.inputBackground : '#FFFFFF',
-                  borderColor: isDark ? colors.inputBorder : '#CBD5E1',
-                  ...Shadows.sm,
-                },
-              ]}
-              accessibilityLabel="Toggle Light and Dark Theme"
-            >
-              <Ionicons
-                name={isDark ? 'sunny' : 'moon'}
-                size={18}
-                color={isDark ? '#FBBF24' : colors.primary}
-              />
-              <Text
+            <View style={styles.topRightControls}>
+              {/* Server Status Pill */}
+              <TouchableOpacity
+                onPress={() => checkServerHealth()}
                 style={[
-                  styles.themeToggleText,
-                  { color: isDark ? '#F8FAFC' : '#0F172A' },
+                  styles.serverStatusPill,
+                  {
+                    backgroundColor: serverOnline ? '#10B98120' : '#EF444420',
+                    borderColor: serverOnline ? '#10B981' : '#EF4444',
+                  },
                 ]}
               >
-                {isDark ? 'Dark' : 'Light'}
-              </Text>
-            </TouchableOpacity>
+                <View
+                  style={[
+                    styles.statusDot,
+                    { backgroundColor: serverOnline ? '#10B981' : '#EF4444' },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.serverStatusText,
+                    { color: serverOnline ? '#10B981' : '#EF4444' },
+                  ]}
+                >
+                  {serverOnline ? 'Backend Online' : 'Check Server'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Theme Toggle Button */}
+              <TouchableOpacity
+                onPress={toggleTheme}
+                activeOpacity={0.8}
+                style={[
+                  styles.themeToggleBtn,
+                  {
+                    backgroundColor: isDark ? colors.inputBackground : '#FFFFFF',
+                    borderColor: isDark ? colors.inputBorder : '#CBD5E1',
+                    ...Shadows.sm,
+                  },
+                ]}
+                accessibilityLabel="Toggle Light and Dark Theme"
+              >
+                <Ionicons
+                  name={isDark ? 'sunny' : 'moon'}
+                  size={18}
+                  color={isDark ? '#FBBF24' : colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </Animated.View>
 
           {/* Logo & Branding */}
@@ -221,13 +275,21 @@ export default function LoginScreen() {
               Welcome Back
             </Text>
             <Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-              Sign in with your student credentials
+              Sign in with your student or staff credentials
             </Text>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <View style={[styles.errorBox, { backgroundColor: '#EF444415', borderColor: '#EF4444' }]}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Text style={styles.errorBoxText}>{errorMessage}</Text>
+              </View>
+            )}
 
             {/* Student ID Input */}
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
-                Student ID / Hostel ID
+                Student ID / Username
               </Text>
               <View
                 style={[
@@ -251,7 +313,10 @@ export default function LoginScreen() {
                   placeholder="e.g. 2021E103"
                   placeholderTextColor={colors.textTertiary}
                   value={studentId}
-                  onChangeText={setStudentId}
+                  onChangeText={(text) => {
+                    setStudentId(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
                   onFocus={() => setIsFocusedId(true)}
                   onBlur={() => setIsFocusedId(false)}
                   autoCapitalize="characters"
@@ -289,7 +354,10 @@ export default function LoginScreen() {
                   placeholder="Enter your password"
                   placeholderTextColor={colors.textTertiary}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
                   onFocus={() => setIsFocusedPw(true)}
                   onBlur={() => setIsFocusedPw(false)}
                   secureTextEntry={!showPassword}
@@ -310,32 +378,54 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Forgot Password */}
-            <TouchableOpacity style={styles.forgotButton}>
-              <Text style={[styles.forgotText, { color: colors.primary }]}>
-                Forgot password?
+            {/* Quick Fill Test Accounts */}
+            <View style={styles.quickFillContainer}>
+              <Text style={[styles.quickFillLabel, { color: colors.textTertiary }]}>
+                Demo Login Accounts:
               </Text>
-            </TouchableOpacity>
+              <View style={styles.quickFillRow}>
+                <TouchableOpacity
+                  onPress={() => quickFill('2021E103', '123123')}
+                  style={[styles.quickFillChip, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+                >
+                  <Text style={[styles.quickFillText, { color: colors.primary }]}>🎓 Student (2021E103)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => quickFill('WARDEN01', '123123')}
+                  style={[styles.quickFillChip, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}
+                >
+                  <Text style={[styles.quickFillText, { color: colors.primary }]}>🛡️ Sub-Warden</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {/* Login Button */}
             <TouchableOpacity
               onPress={handleLogin}
+              disabled={isLoading}
               activeOpacity={0.85}
               style={[
                 styles.loginButton,
                 {
                   backgroundColor: colors.primary,
+                  opacity: isLoading ? 0.7 : 1,
                   ...Shadows.md,
                 },
               ]}
             >
-              <Text style={styles.loginButtonText}>LOG IN</Text>
-              <Ionicons
-                name="arrow-forward"
-                size={20}
-                color="#FFFFFF"
-                style={{ marginLeft: 8 }}
-              />
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>LOG IN</Text>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 8 }}
+                  />
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -353,6 +443,8 @@ export default function LoginScreen() {
 
             {/* SSO Button */}
             <TouchableOpacity
+              onPress={handleSSOLogin}
+              disabled={isLoading}
               activeOpacity={0.8}
               style={[
                 styles.ssoButton,
@@ -381,7 +473,7 @@ export default function LoginScreen() {
             style={styles.footer}
           >
             <Text style={[styles.footerText, { color: colors.textTertiary }]}>
-              University Hostel Management System
+              HostelHub API Integrated · Node.js + Express + MySQL
             </Text>
           </Animated.View>
         </ScrollView>
@@ -431,6 +523,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.xs,
   },
+  topRightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  serverStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    gap: 5,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  serverStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   langChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -442,21 +557,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   themeToggleBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    justifyContent: 'center',
+    padding: Spacing.xs + 2,
     borderRadius: BorderRadius.full,
     borderWidth: 1.5,
   },
-  themeToggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xxxl,
+    marginBottom: Spacing.xxl,
   },
   logoContainer: {
     width: 72,
@@ -490,7 +599,22 @@ const styles = StyleSheet.create({
   },
   cardSubtitle: {
     fontSize: 14,
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xl,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  errorBoxText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
   inputGroup: {
     marginBottom: Spacing.lg,
@@ -521,14 +645,27 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: Spacing.xs,
   },
-  forgotButton: {
-    alignSelf: 'flex-end',
+  quickFillContainer: {
     marginBottom: Spacing.xl,
-    marginTop: -Spacing.sm,
-    paddingVertical: Spacing.xs,
   },
-  forgotText: {
-    fontSize: 14,
+  quickFillLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  quickFillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  quickFillChip: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  quickFillText: {
+    fontSize: 12,
     fontWeight: '700',
   },
   loginButton: {

@@ -5,6 +5,7 @@ import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/context/ThemeContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 export const unstable_settings = {
   anchor: '(auth)',
@@ -28,7 +29,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AppThemeProvider>
-        <RootNavigation />
+        <AuthProvider>
+          <RootNavigation />
+        </AuthProvider>
       </AppThemeProvider>
     </SafeAreaProvider>
   );

@@ -1,50 +1,46 @@
-# Welcome to your Expo app 👋
+# 📱 HostelHub Mobile App (React Native + Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Mobile client application for the **HostelHub** University Hostel Maintenance System.
 
-## Get started
+---
 
-1. Install dependencies
+## 🚀 Quick Start
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 1. Install Dependencies
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Start the Development Server
+```bash
+npx expo start
+```
 
-## Learn more
+- **Web Preview**: Press `w` in terminal
+- **Mobile Phone (Expo Go)**: Scan QR code with Expo Go app
+- **Android Emulator**: Press `a` in terminal
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🔑 Demo Test Accounts
 
-## Join the community
+All accounts use the password: **`123123`**
 
-Join our community of developers creating universal apps.
+| Role | Student ID / Username | Password | User Name | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Student** | `2021E103` | `123123` | Sachintha Nimesh | Room 204, Mahanama Hall |
+| **Sub-Warden** | `WARDEN01` | `123123` | Dr. K. Gunasekara | Sub-Warden |
+| **Electrician** | `STAFF_ELEC01` | `123123` | K. Bandara | Maintenance Unit |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+*(Quick-login demo buttons are also provided on the Login screen!)*
+
+---
+
+## 📡 Backend API Connection
+
+The app automatically resolves the computer's LAN IP address when running via Expo Go.
+
+To manually configure the backend IP address:
+1. Open the app and navigate to the **Profile** tab.
+2. Tap **"Configure API Server Host / Port"**.
+3. Enter `http://<YOUR_COMPUTER_IP>:5000/api/v1` and tap **Save & Reconnect**.
