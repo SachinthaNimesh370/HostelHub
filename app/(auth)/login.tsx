@@ -25,12 +25,13 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppTheme } from '@/context/ThemeContext';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function LoginScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
+  const { colorScheme, isDark, toggleTheme } = useAppTheme();
   const colors = Colors[colorScheme];
 
   const [studentId, setStudentId] = useState('');
@@ -74,7 +75,7 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
 
       {/* Decorative gradient orbs */}
       <Animated.View
@@ -103,38 +104,62 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Language Selector */}
+          {/* Top Bar: Language Selector + Theme Toggle */}
           <Animated.View
             entering={FadeInDown.delay(100).duration(600)}
-            style={styles.langRow}
+            style={styles.topControlRow}
           >
-            {languages.map((lang) => (
-              <TouchableOpacity
-                key={lang}
-                onPress={() => setSelectedLang(lang)}
-                style={[
-                  styles.langChip,
-                  {
-                    backgroundColor:
-                      selectedLang === lang ? colors.primary : colors.inputBackground,
-                    borderColor:
-                      selectedLang === lang ? colors.primary : colors.inputBorder,
-                  },
-                ]}
-              >
-                <Text
+            <View style={styles.langRow}>
+              {languages.map((lang) => (
+                <TouchableOpacity
+                  key={lang}
+                  onPress={() => setSelectedLang(lang)}
                   style={[
-                    styles.langChipText,
+                    styles.langChip,
                     {
-                      color:
-                        selectedLang === lang ? '#FFFFFF' : colors.textSecondary,
+                      backgroundColor:
+                        selectedLang === lang ? colors.primary : colors.inputBackground,
+                      borderColor:
+                        selectedLang === lang ? colors.primary : colors.inputBorder,
                     },
                   ]}
                 >
-                  {lang}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.langChipText,
+                      {
+                        color:
+                          selectedLang === lang ? '#FFFFFF' : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {lang}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Theme Toggle Button */}
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={[
+                styles.themeToggleBtn,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.inputBorder,
+                },
+              ]}
+              accessibilityLabel="Toggle Light and Dark Theme"
+            >
+              <Ionicons
+                name={isDark ? 'sunny' : 'moon'}
+                size={18}
+                color={isDark ? '#FBBF24' : colors.primary}
+              />
+              <Text style={[styles.themeToggleText, { color: colors.textSecondary }]}>
+                {isDark ? 'Dark' : 'Light'}
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
 
           {/* Logo & Branding */}
@@ -371,21 +396,38 @@ const styles = StyleSheet.create({
     left: -80,
     opacity: 0.1,
   },
-  langRow: {
+  topControlRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: Spacing.xxl,
   },
+  langRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
   langChip: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     borderWidth: 1.5,
   },
   langChipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
+  },
+  themeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1.5,
+  },
+  themeToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   brandContainer: {
     alignItems: 'center',

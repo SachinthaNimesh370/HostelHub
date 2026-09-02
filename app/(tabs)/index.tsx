@@ -15,6 +15,8 @@ import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ComplaintCard, ComplaintItem } from '@/components/ComplaintCard';
 
+import { useAppTheme } from '@/context/ThemeContext';
+
 const ACTIVE_COMPLAINTS: ComplaintItem[] = [
   {
     id: 'C-1024',
@@ -50,7 +52,7 @@ const ACTIVE_COMPLAINTS: ComplaintItem[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
+  const { colorScheme, isDark, toggleTheme } = useAppTheme();
   const colors = Colors[colorScheme];
 
   return (
@@ -80,28 +82,50 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/(tabs)/complaints')}
-          style={[
-            styles.notifButton,
-            {
-              backgroundColor: colors.inputBackground,
-              borderColor: colors.inputBorder,
-            },
-          ]}
-        >
-          <Ionicons
-            name="notifications-outline"
-            size={22}
-            color={colors.text}
-          />
-          <View
+        <View style={styles.headerActions}>
+          {/* Quick Theme Toggle */}
+          <TouchableOpacity
+            onPress={toggleTheme}
             style={[
-              styles.notifBadge,
-              { backgroundColor: colors.danger },
+              styles.headerIconButton,
+              {
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+              },
             ]}
-          />
-        </TouchableOpacity>
+            accessibilityLabel="Toggle Light / Dark Mode"
+          >
+            <Ionicons
+              name={isDark ? 'sunny' : 'moon'}
+              size={20}
+              color={isDark ? '#FBBF24' : colors.primary}
+            />
+          </TouchableOpacity>
+
+          {/* Notifications */}
+          <TouchableOpacity
+            onPress={() => router.push('/(tabs)/complaints')}
+            style={[
+              styles.headerIconButton,
+              {
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+              },
+            ]}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={colors.text}
+            />
+            <View
+              style={[
+                styles.notifBadge,
+                { backgroundColor: colors.danger },
+              ]}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -359,9 +383,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  notifButton: {
-    width: 44,
-    height: 44,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  headerIconButton: {
+    width: 42,
+    height: 42,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     alignItems: 'center',
@@ -369,8 +398,8 @@ const styles = StyleSheet.create({
   },
   notifBadge: {
     position: 'absolute',
-    top: 10,
-    right: 11,
+    top: 9,
+    right: 10,
     width: 8,
     height: 8,
     borderRadius: BorderRadius.full,

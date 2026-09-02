@@ -12,9 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Spacing, Shadows } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+import { useAppTheme } from '@/context/ThemeContext';
+
 export default function ProfileScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? 'light';
+  const { colorScheme, isDark, toggleTheme, setTheme } = useAppTheme();
   const colors = Colors[colorScheme];
 
   const handleLogout = () => {
@@ -79,7 +81,60 @@ export default function ProfileScreen() {
 
         {/* Preferences */}
         <View style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder, ...Shadows.sm }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferences & App</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferences & Appearance</Text>
+
+          {/* Theme Selector Toggle */}
+          <View style={styles.themeRow}>
+            <View style={styles.menuLeft}>
+              <Ionicons name={isDark ? 'moon-outline' : 'sunny-outline'} size={20} color={colors.primary} />
+              <View>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>App Theme</Text>
+                <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+                  {isDark ? 'Dark Mode' : 'Light Color Theme'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.themePills, { backgroundColor: colors.inputBackground }]}>
+              <TouchableOpacity
+                onPress={() => setTheme('light')}
+                style={[
+                  styles.themePill,
+                  !isDark && [styles.themePillActive, { backgroundColor: colors.card, ...Shadows.sm }],
+                ]}
+              >
+                <Ionicons name="sunny" size={14} color={!isDark ? colors.primary : colors.textTertiary} />
+                <Text
+                  style={[
+                    styles.themePillText,
+                    { color: !isDark ? colors.primary : colors.textSecondary, fontWeight: !isDark ? '700' : '500' },
+                  ]}
+                >
+                  Light
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setTheme('dark')}
+                style={[
+                  styles.themePill,
+                  isDark && [styles.themePillActive, { backgroundColor: colors.card, ...Shadows.sm }],
+                ]}
+              >
+                <Ionicons name="moon" size={14} color={isDark ? '#FBBF24' : colors.textTertiary} />
+                <Text
+                  style={[
+                    styles.themePillText,
+                    { color: isDark ? '#FBBF24' : colors.textSecondary, fontWeight: isDark ? '700' : '500' },
+                  ]}
+                >
+                  Dark
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
           <TouchableOpacity style={styles.menuRow}>
             <View style={styles.menuLeft}>
@@ -215,6 +270,34 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: Spacing.sm,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.xs,
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  themePills: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.full,
+    padding: 3,
+    gap: 3,
+  },
+  themePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.full,
+  },
+  themePillActive: {},
+  themePillText: {
+    fontSize: 12,
   },
   menuRow: {
     flexDirection: 'row',
